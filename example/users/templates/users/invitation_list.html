@@ -1,0 +1,301 @@
+{% extends "users/base.html" %}
+
+{% block title %}Invitations{% endblock %}
+
+{% block content %}
+
+<div class="space-y-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900">
+                Invitations
+            </h1>
+
+            <p class="mt-1 text-sm text-gray-500">
+                Manage invitations you've sent.
+            </p>
+        </div>
+
+        <a
+            href="{% url 'invite_user' %}"
+            class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5
+                   text-sm font-semibold text-white shadow-sm
+                   transition hover:bg-blue-700
+                   focus:outline-none focus:ring-2
+                   focus:ring-blue-500 focus:ring-offset-2"
+        >
+            <svg
+                class="mr-2 h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 4v16m8-8H4"
+                />
+            </svg>
+
+            New invitation
+        </a>
+    </div>
+
+
+    {% if invitations %}
+
+    <!-- Table -->
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th
+                            scope="col"
+                            class="px-6 py-3 text-left text-xs font-semibold
+                                   uppercase tracking-wide text-gray-500"
+                        >
+                            Recipient
+                        </th>
+
+                        <th
+                            scope="col"
+                            class="px-6 py-3 text-left text-xs font-semibold
+                                   uppercase tracking-wide text-gray-500"
+                        >
+                            Purpose
+                        </th>
+
+                        <th
+                            scope="col"
+                            class="px-6 py-3 text-left text-xs font-semibold
+                                   uppercase tracking-wide text-gray-500"
+                        >
+                            Status
+                        </th>
+
+                        <th
+                            scope="col"
+                            class="px-6 py-3 text-left text-xs font-semibold
+                                   uppercase tracking-wide text-gray-500"
+                        >
+                            Expires
+                        </th>
+
+                        <th
+                            scope="col"
+                            class="px-6 py-3 text-right text-xs font-semibold
+                                   uppercase tracking-wide text-gray-500"
+                        >
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-gray-200 bg-white">
+
+                    {% for invitation in invitations %}
+
+                    <tr class="transition hover:bg-gray-50">
+
+                        <!-- Recipient -->
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <div class="text-sm font-medium text-gray-900">
+                                {{ invitation.recipient_email }}
+                            </div>
+
+                            {% if invitation.recipient %}
+                                <div class="mt-0.5 text-xs text-gray-500">
+                                    {{ invitation.recipient }}
+                                </div>
+                            {% endif %}
+                        </td>
+
+
+                        <!-- Purpose -->
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <span class="text-sm text-gray-700">
+                                {{ invitation.purpose }}
+                            </span>
+                        </td>
+
+
+                        <!-- Status -->
+                        <td class="whitespace-nowrap px-6 py-4">
+
+                            {% if invitation.status == "pending" %}
+                                <span
+                                    class="inline-flex items-center rounded-full
+                                           bg-blue-50 px-2.5 py-1 text-xs
+                                           font-medium text-blue-700"
+                                >
+                                    <span class="mr-1.5 h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                                    Pending
+                                </span>
+
+                            {% elif invitation.status == "accepted" %}
+                                <span
+                                    class="inline-flex items-center rounded-full
+                                           bg-green-50 px-2.5 py-1 text-xs
+                                           font-medium text-green-700"
+                                >
+                                    <span class="mr-1.5 h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                                    Accepted
+                                </span>
+
+                            {% elif invitation.status == "revoked" %}
+                                <span
+                                    class="inline-flex items-center rounded-full
+                                           bg-red-50 px-2.5 py-1 text-xs
+                                           font-medium text-red-700"
+                                >
+                                    <span class="mr-1.5 h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                                    Revoked
+                                </span>
+
+                            {% elif invitation.status == "expired" %}
+                                <span
+                                    class="inline-flex items-center rounded-full
+                                           bg-amber-50 px-2.5 py-1 text-xs
+                                           font-medium text-amber-700"
+                                >
+                                    <span class="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                    Expired
+                                </span>
+
+                            {% else %}
+                                <span
+                                    class="inline-flex items-center rounded-full
+                                           bg-gray-100 px-2.5 py-1 text-xs
+                                           font-medium text-gray-700"
+                                >
+                                    {{ invitation.status }}
+                                </span>
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- Expires -->
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <span class="text-sm text-gray-700">
+                                {{ invitation.expires_at|date:"M d, Y H:i" }}
+                            </span>
+                        </td>
+
+
+                        <!-- Actions -->
+                        <td class="whitespace-nowrap px-6 py-4 text-right">
+
+                            {% if invitation.status == "pending" %}
+
+                                <div class="flex justify-end gap-2">
+
+                                    <a
+                                        href="{% url 'revoke_invitation' invitation.token %}"
+                                        class="inline-flex items-center rounded-lg
+                                               border border-red-200 bg-white
+                                               px-3 py-2 text-xs font-semibold
+                                               text-red-600 transition
+                                               hover:bg-red-50"
+                                    >
+                                        Revoke
+                                    </a>
+
+                                    {% if invitation.has_expired %}
+                                        <a
+                                            href="{% url 'expire_invitation' invitation.token %}"
+                                            class="inline-flex items-center rounded-lg
+                                                   border border-amber-200 bg-white
+                                                   px-3 py-2 text-xs font-semibold
+                                                   text-amber-600 transition
+                                                   hover:bg-amber-50"
+                                        >
+                                            Expire
+                                        </a>
+                                    {% endif %}
+
+                                </div>
+
+                            {% elif invitation.status == "accepted" %}
+
+                                <span class="text-xs text-gray-400">
+                                    No actions
+                                </span>
+
+                            {% elif invitation.status == "revoked" %}
+
+                                <span class="text-xs text-gray-400">
+                                    Revoked
+                                </span>
+
+                            {% elif invitation.status == "expired" %}
+
+                                <span class="text-xs text-gray-400">
+                                    Expired
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% else %}
+
+    <!-- Empty state -->
+    <div class="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
+
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+            <svg
+                class="h-6 w-6 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2 2 2 0 002 2z"
+                />
+            </svg>
+        </div>
+
+        <h2 class="mt-4 text-sm font-semibold text-gray-900">
+            No invitations yet
+        </h2>
+
+        <p class="mx-auto mt-1 max-w-sm text-sm text-gray-500">
+            You haven't sent any invitations yet.
+        </p>
+
+        <div class="mt-6">
+            <a
+                href="{% url 'invite_user' %}"
+                class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5
+                       text-sm font-semibold text-white shadow-sm
+                       hover:bg-blue-700"
+            >
+                Create invitation
+            </a>
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}
