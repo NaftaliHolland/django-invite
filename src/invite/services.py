@@ -22,11 +22,9 @@ def create_invitation(
     purpose,
     expires_at,
     recipient=None,
-    receipient=None,
     recipient_email=None,
 
 ):
-
     invitation = Invitation.objects.create(
         inviter=inviter,
         recipient=recipient,

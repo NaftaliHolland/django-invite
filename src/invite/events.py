@@ -24,14 +24,7 @@ def emit(signal, handler_name, invitation):
         invitation=invitation,
     )
 
-    try:
-        handler = get_event_handler(handler_name)
-    except ImproperlyConfigured:
-        logger.exception(
-            "Ivalid invitations handler configuration for %s",
-            handler_name,
-        )
-        return
+    handler = get_event_handler(handler_name)
 
     if handler is not None:
         handler(invitation)

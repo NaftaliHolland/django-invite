@@ -129,9 +129,4 @@ MAILERS = {
     },
 }
 
-INVITATIONS = {
-    "INVITE_CREATED_CALLBACK": "users.services.send_invitation",
-    "INVITE_ACCEPTED_CALLBACK": "users.services.handle_invitation_accepted",
-    "INVITE_REVOKED_CALLBACK": "users.services.handle_invitation_revoked",
-    "INVITE_EXPIRED_CALLBACK": "users.services.handle_invitation_expired",
-}
+INVITATIONS = {}

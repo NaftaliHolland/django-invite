@@ -2,13 +2,13 @@ from datetime import timedelta
 
 from django.test import TestCase, SimpleTestCase
 from unittest.mock import patch
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
 from invite.conf import SETTING_NAME, get_settings, get_event_handler
-from .models import Invitation, InvitationStatus
-from django.contrib.auth import get_user_model
+from invite.models import Invitation, InvitationStatus
 from django.utils import timezone
-from .exceptions import InvitationAlreadyAcceptedError, InvitationCallbackNotCallable, InvitationDoesNotExistError, InvitationExpiredError, InvitationRevokedError
-from .services import create_invitation, accept_invitation, get_invitation_by_token, revoke_invitation, expire_invitation
+from invite.exceptions import InvitationAlreadyAcceptedError, InvitationCallbackNotCallable, InvitationDoesNotExistError, InvitationExpiredError, InvitationRevokedError
+from invite.services import create_invitation, accept_invitation, get_invitation_by_token, revoke_invitation, expire_invitation
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ NOT_COLLABLE = "invitation_create"
 class SettingsConfTestCase(SimpleTestCase):
     def test_returns_settings_dict(self):
         settings = {
-            "INVITE_CREATED_CALLBACK": "invite.tests.invitation_create",
+            "INVITE_CREATED_CALLBACK": "tests.test_services.invitation_create",
             "INVITE_ACCEPTED_CALLBACK": None,
             "INVITE_REVOKED_CALLBACK": None,
             "INVITE_EXPIRED_CALLBACK": None,
@@ -47,12 +47,12 @@ class SettingsConfTestCase(SimpleTestCase):
         with self.assertRaises(ImproperlyConfigured):
             get_event_handler("INVITE_CREATED_CALLBACK")
 
-    @patch("invite.conf.get_settings", return_value={"INVITE_CREATED_CALLBACK": "invite.tests.invitation_create"})
+    @patch("invite.conf.get_settings", return_value={"INVITE_CREATED_CALLBACK": "tests.test_services.invitation_create"})
     def test_gets_the_right_handler(self, mock_settings_get):
 
         self.assertEqual(invitation_create, get_event_handler("INVITE_CREATED_CALLBACK"))
 
-    @patch("invite.conf.get_settings", return_value={"INVITE_CREATED_CALLBACK": "invite.tests.NOT_COLLABLE"})
+    @patch("invite.conf.get_settings", return_value={"INVITE_CREATED_CALLBACK": "tests.test_services.NOT_COLLABLE"})
     def test_raises_if_not_callable(self, mock_settings_get):
         with self.assertRaises(InvitationCallbackNotCallable):
             get_event_handler("INVITE_CREATED_CALLBACK")

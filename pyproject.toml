@@ -16,6 +16,12 @@ dependencies = [
     "Django>=4.2",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.9",
+]
+
 [tool.setuptools]
 package-dir = { "" = "src" }
 
