@@ -104,6 +104,26 @@ class InvitationServiceTests(TestCase):
 
         self.assertEqual(Invitation.objects.count(), 1)
 
+    def test_create_returns_raw_token(self):
+        invitation = create_invitation(
+            inviter=self.inviter,
+            purpose="Test",
+            expires_at=self.expires_at,
+            recipient=self.recipient,
+        )
+
+        self.assertIsNotNone(invitation.raw_token)
+
+    def test_create_invitation_does_not_save_raw_token(self):
+        invitation = create_invitation(
+            inviter=self.inviter,
+            purpose="Test",
+            expires_at=self.expires_at,
+            recipient=self.recipient,
+        )
+
+        self.assertNotEqual(invitation.raw_token, invitation.token_hash)
+
     def test_revokes_existing_invitation_for_user_when_a_new_one_is_created(self):
         invitation1 = self.create_test_invitation()
         invitation2 = self.create_test_invitation()
@@ -175,10 +195,17 @@ class InvitationServiceTests(TestCase):
         self.assertEqual(invitation.status, InvitationStatus.EXPIRED)
         self.assertIsNotNone(invitation.expired_at)
 
+    def test_get_invitation_by_raw_token(self):
+        invitation = self.create_test_invitation()
+
+        invitation_token =  invitation.raw_token
+
+        self.assertEqual(invitation, get_invitation_by_token(token=invitation_token, is_raw=True))
+
     def test_get_invitation_by_token(self):
         invitation = self.create_test_invitation()
 
-        invitation_token =  invitation.token
+        invitation_token =  invitation.token_hash
 
         self.assertEqual(invitation, get_invitation_by_token(token=invitation_token))
 

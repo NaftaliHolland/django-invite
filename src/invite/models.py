@@ -36,8 +36,9 @@ class Invitation(models.Model):
 
     recipient_email = models.EmailField(null=True, blank=True)
     purpose = models.CharField(max_length=100)
-    token = models.CharField(max_length=128, unique=True, db_index=True)
+    token_hash = models.CharField(max_length=128, unique=True, db_index=True)
     status = models.CharField(max_length=20, choices=InvitationStatus.choices, default=InvitationStatus.PENDING, db_index=True)
+    meta = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     accepted_at = models.DateTimeField(null=True, blank=True)

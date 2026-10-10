@@ -1,4 +1,5 @@
 import secrets
+import hashlib
 from django.utils import timezone
 from .exceptions import (
     InvitationAlreadyAcceptedError,
@@ -15,6 +16,9 @@ from .events import emit_after_commit, emit_invitation_accepted, emit_invitation
 def generate_token():
     return secrets.token_urlsafe(32)
 
+def hash_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
 @transaction.atomic
 def create_invitation(
     *,
@@ -25,25 +29,34 @@ def create_invitation(
     recipient_email=None,
 
 ):
+
+    raw_token = generate_token()
+
     invitation = Invitation.objects.create(
         inviter=inviter,
         recipient=recipient,
         recipient_email=recipient_email,
         purpose=purpose,
-        token=generate_token(),
+        token_hash=hash_token(raw_token),
         expires_at=expires_at,
     )
+
+    invitation.raw_token = raw_token
     
     emit_after_commit(emit_invitation_created, invitation)
 
     return invitation
 
-def get_invitation_by_token(*, token):
+def get_invitation_by_token(token, is_raw=False):
     try:
-        return Invitation.objects.get(token=token)
+        if is_raw:
+            return Invitation.objects.get(token_hash=hash_token(token))
+        else:
+            return Invitation.objects.get(token_hash=token)
+
     except Invitation.DoesNotExist:
         raise InvitationDoesNotExistError
-        
+
 @transaction.atomic
 def accept_invitation(
     *,
