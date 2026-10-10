@@ -14,7 +14,6 @@ DEFAULTS = {
     "INVITE_EXPIRED_CALLBACK": None,
 
     "MAX_TTL": 7 * 24 * 60 * 60,
-    "REQUIRE_EMAIL_MATCH": True
 }
 
 

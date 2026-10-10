@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from django.test import TestCase, SimpleTestCase
 from unittest.mock import patch
 from django.contrib.auth import get_user_model
@@ -7,8 +5,8 @@ from django.core.exceptions import ImproperlyConfigured
 from invite.conf import SETTING_NAME, get_settings, get_event_handler
 from invite.models import Invitation, InvitationStatus
 from django.utils import timezone
-from invite.exceptions import InvitationAlreadyAcceptedError, InvitationCallbackNotCallable, InvitationDoesNotExistError, InvitationExpiredError, InvitationRevokedError, MaximumTTLExceededError
-from invite.services import create_invitation, accept_invitation, get_invitation_by_token, revoke_invitation, expire_invitation
+from invite.exceptions import InvitationAlreadyAcceptedError, InvitationCallbackNotCallable, InvitationDoesNotExistError, InvitationError, InvitationExpiredError, InvitationRevokedError, MaximumTTLExceededError
+from invite.services import create_invitation, accept_invitation, get_invitation_by_token, hash_token, revoke_invitation, expire_invitation, rotate_token
 
 User = get_user_model()
 
@@ -87,7 +85,7 @@ class InvitationServiceTests(TestCase):
         )
 
         self.expires_at = (
-            timezone.now() + timedelta(days=7)
+            timezone.now() + timezone.timedelta(days=7)
         )
 
     def create_test_invitation(self):
@@ -129,19 +127,19 @@ class InvitationServiceTests(TestCase):
 
         max_ttl = get_settings().get("MAX_TTL")
 
-        expected_earliest = before + timedelta(seconds=max_ttl)
-        expected_latest = after + timedelta(seconds=max_ttl)
+        expected_earliest = before + timezone.timedelta(seconds=max_ttl)
+        expected_latest = after + timezone.timedelta(seconds=max_ttl)
 
         self.assertGreaterEqual(invitation.expires_at, expected_earliest)
         self.assertLessEqual(invitation.expires_at, expected_latest)
 
-    def raises_if_expires_at_is_greater_than_MAX_TTL(self):
+    def test_raises_if_expires_at_is_greater_than_MAX_TTL(self):
 
         with self.assertRaises(MaximumTTLExceededError):
             invitation = create_invitation(
                 inviter=self.inviter,
                 purpose="Test",
-                expires_at=datetime.now() + timedelta(days=10),
+                expires_at=timezone.now() + timezone.timedelta(days=10),
                 recipient=self.recipient,
             )
 
@@ -156,11 +154,6 @@ class InvitationServiceTests(TestCase):
         )
 
         self.assertNotEqual(invitation.raw_token, invitation.token_hash)
-
-    def test_revokes_existing_invitation_for_user_when_a_new_one_is_created(self):
-        invitation1 = self.create_test_invitation()
-        invitation2 = self.create_test_invitation()
-        pass
 
     def test_accept_invitation(self):
         invitation = self.create_test_invitation()
@@ -215,7 +208,7 @@ class InvitationServiceTests(TestCase):
     def test_expire_invitation(self):
         invitation = self.create_test_invitation()
 
-        invitation.expires_at = timezone.now() - timedelta(days=1)
+        invitation.expires_at = timezone.now() - timezone.timedelta(days=1)
 
         invitation.save(update_fields=["expires_at"])
 
@@ -246,6 +239,160 @@ class InvitationServiceTests(TestCase):
         with self.assertRaises(InvitationDoesNotExistError):
             get_invitation_by_token(token="herekjskdjkaj8282828")
 
+    def test_rotate_token_returns_new_raw_token(self):
+        invitation = self.create_test_invitation()
+        old_raw_token = invitation.raw_token
+
+        rotated = rotate_token(invitation=invitation)
+
+        self.assertIsNotNone(rotated.raw_token)
+        self.assertNotEqual(rotated.raw_token, old_raw_token)
+
+    def test_rotate_token_stores_new_hash(self):
+        invitation = self.create_test_invitation()
+        old_hash = invitation.token_hash
+
+        rotated = rotate_token(invitation=invitation)
+
+        invitation.refresh_from_db()
+
+        self.assertNotEqual(invitation.token_hash, old_hash)
+        self.assertEqual(invitation.token_hash, hash_token(rotated.raw_token))
+
+    def test_old_token_does_not_work_after_rotation(self):
+        invitation = self.create_test_invitation()
+        old_raw_token = invitation.raw_token
+
+        rotate_token(invitation=invitation)
+
+        with self.assertRaises(InvitationDoesNotExistError):
+            get_invitation_by_token(token=old_raw_token)
+
+    def test_new_token_works_after_rotation(self):
+        invitation = self.create_test_invitation()
+
+        rotated = rotate_token(invitation=invitation)
+
+        self.assertEqual(invitation, get_invitation_by_token(token=rotated.raw_token))
+
+    def test_can_accept_invitation_with_rotated_token(self):
+        invitation = self.create_test_invitation()
+
+        rotated = rotate_token(invitation=invitation)
+
+        accept_invitation(
+            token=rotated.raw_token,
+            accepted_by=self.recipient,
+        )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(invitation.status, InvitationStatus.ACCEPTED)
+
+    def test_rotate_token_keeps_status_and_expires_at(self):
+        invitation = self.create_test_invitation()
+        expires_at = invitation.expires_at
+
+        rotate_token(invitation=invitation)
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(invitation.status, InvitationStatus.PENDING)
+        self.assertEqual(invitation.expires_at, expires_at)
+
+    def test_cannot_rotate_accepted_invitation(self):
+        invitation = self.create_test_invitation()
+        invitation.status = InvitationStatus.ACCEPTED
+        invitation.save(update_fields=["status"])
+
+        with self.assertRaises(InvitationAlreadyAcceptedError):
+            rotate_token(invitation=invitation)
+
+    def test_cannot_rotate_revoked_invitation(self):
+        invitation = self.create_test_invitation()
+        invitation.status = InvitationStatus.REVOKED
+        invitation.save(update_fields=["status"])
+
+        with self.assertRaises(InvitationRevokedError):
+            rotate_token(invitation=invitation)
+
+    def test_cannot_rotate_expired_invitation(self):
+        invitation = self.create_test_invitation()
+        invitation.status = InvitationStatus.EXPIRED
+        invitation.save(update_fields=["status"])
+
+        with self.assertRaises(InvitationExpiredError):
+            rotate_token(
+                invitation=invitation,
+                expires_at=timezone.now() + timezone.timedelta(days=1),
+            )
+
+    def test_cannot_rotate_invitation_that_expired_by_time(self):
+        invitation = self.create_test_invitation()
+        invitation.expires_at = timezone.now() - timezone.timedelta(days=1)
+        invitation.save(update_fields=["expires_at"])
+
+        with self.assertRaises(InvitationExpiredError):
+            rotate_token(invitation=invitation)
+
+    def test_rotate_token_can_revive_invitation_that_expired_by_time(self):
+        invitation = self.create_test_invitation()
+        invitation.expires_at = timezone.now() - timezone.timedelta(days=1)
+        invitation.save(update_fields=["expires_at"])
+
+        new_expires_at = timezone.now() + timezone.timedelta(days=3)
+
+        rotated = rotate_token(invitation=invitation, expires_at=new_expires_at)
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(invitation.expires_at, new_expires_at)
+        self.assertTrue(invitation.is_valid)
+        self.assertIsNotNone(rotated.raw_token)
+
+    def test_rotate_token_raises_if_expires_at_is_in_the_past(self):
+        invitation = self.create_test_invitation()
+
+        with self.assertRaises(InvitationError):
+            rotate_token(
+                invitation=invitation,
+                expires_at=timezone.now() - timezone.timedelta(minutes=1),
+            )
+
+    def test_rotate_token_raises_if_expires_at_exceeds_max_ttl(self):
+        invitation = self.create_test_invitation()
+        max_ttl = get_settings().get("MAX_TTL")
+
+        with self.assertRaises(MaximumTTLExceededError):
+            rotate_token(
+                invitation=invitation,
+                expires_at=timezone.now() + timezone.timedelta(seconds=max_ttl + 3600),
+            )
+
+    def test_rotate_token_does_not_change_hash_when_it_fails(self):
+        invitation = self.create_test_invitation()
+        old_hash = invitation.token_hash
+        invitation.status = InvitationStatus.REVOKED
+        invitation.save(update_fields=["status"])
+
+        with self.assertRaises(InvitationRevokedError):
+            rotate_token(invitation=invitation)
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(invitation.token_hash, old_hash)
+
+    def test_rotate_token_checks_current_status_not_stale_instance(self):
+        invitation = self.create_test_invitation()
+
+        stale_invitation = Invitation.objects.get(pk=invitation.pk)
+        revoke_invitation(invitation=invitation)
+
+        self.assertEqual(stale_invitation.status, InvitationStatus.PENDING)
+
+        with self.assertRaises(InvitationRevokedError):
+            rotate_token(invitation=stale_invitation)
+
 class InvitationEventTests(TestCase):
     def setUp(self):
         self.inviter = User.objects.create_user(
@@ -257,7 +404,7 @@ class InvitationEventTests(TestCase):
         return create_invitation(
             inviter=self.inviter,
             purpose="Test",
-            expires_at=(timezone.now() + timedelta(days=7)),
+            expires_at=(timezone.now() + timezone.timedelta(days=7)),
             recipient_email="test@gmail.com",
         )
 
@@ -269,7 +416,7 @@ class InvitationEventTests(TestCase):
             create_invitation(
                 inviter=self.inviter,
                 purpose="Test",
-                expires_at=(timezone.now() + timedelta(days=7)),
+                expires_at=(timezone.now() + timezone.timedelta(days=7)),
                 recipient_email="test@gmail.com",
             )
 
@@ -300,7 +447,7 @@ class InvitationEventTests(TestCase):
     @patch("invite.events.get_event_handler", return_value=None)
     def test_expired_event_emited(self, mock_get_event_handler, mock_send):
         invitation = self.create_test_invitation()
-        invitation.expires_at = timezone.now() - timedelta(days=1)
+        invitation.expires_at = timezone.now() - timezone.timedelta(days=1)
 
         invitation.save(update_fields=["expires_at"])
 

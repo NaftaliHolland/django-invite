@@ -1,7 +1,6 @@
 import secrets
 import hashlib
 from django.utils import timezone
-
 from invite.conf import get_settings
 from .exceptions import (
     InvitationAlreadyAcceptedError,
@@ -200,3 +199,37 @@ def get_invitations(
     queryset.order_by("-created_at")
 
     return queryset
+
+@transaction.atomic
+def rotate_token(*, invitation, expires_at=None):
+    invitation = Invitation.objects.select_for_update().get(pk=invitation.pk)
+
+    if invitation.status == InvitationStatus.ACCEPTED:
+        raise InvitationAlreadyAcceptedError("This invitation has already been accepted.")
+
+    if invitation.status == InvitationStatus.REVOKED:
+        raise InvitationRevokedError("This invitation has been revoked.")
+
+    if invitation.status == InvitationStatus.EXPIRED:
+        raise InvitationExpiredError("This invitation has expired.")
+
+    now = timezone.now()
+
+    if expires_at is not None:
+        if expires_at <= now:
+            raise InvitationError("expires_at must be in the future.")
+        if expires_at > now + timezone.timedelta(seconds=get_settings().get("MAX_TTL")):
+            raise MaximumTTLExceededError("expires_at cannot exceed MAX_TTL")
+        invitation.expires_at = expires_at
+    elif invitation.has_expired:
+        raise InvitationExpiredError(
+            "This invitation has expired. Pass a new expires_at to revive it."
+        )
+
+    raw_token = generate_token()
+    invitation.token_hash = hash_token(raw_token)
+    invitation.save(update_fields=["token_hash", "expires_at"])
+
+    invitation.raw_token = raw_token
+
+    return invitation

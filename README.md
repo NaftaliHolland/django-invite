@@ -168,6 +168,43 @@ invitation = get_invitation_by_token(token, is_raw=True)
 If `is_raw` it uses the raw_token to get the invitation (This should be used when accepting an invitation).
 `is_raw` is `True` by default.
 
+## Rotating an invitation's token
+
+Tokens are stored hashed, so the original link cannot be recovered after creation. To send an invitation again, or to cut off a link you think has leaked, rotate its token:
+
+```
+from django_invitations.services import rotate_token
+
+invitation = rotate_token(invitation=invitation)
+
+send_invitation_email(invitation.recipient_email, invitation.raw_token)
+```
+
+Rotation:
+
+- Generates a new token and stores only its hash.
+- Makes the old token stop working immediately.
+- Returns the invitation with the new `raw_token`, available on that returned instance only. Your application is responsible for delivering the new link.
+- Does not change the invitation's status or emit an event.
+
+Only pending invitations can be rotated. Accepted, revoked, and explicitly expired invitations raise the matching exception.
+
+### Rotating an invitation that expired by time
+
+An invitation that has passed its expiration time cannot be rotated unless you pass a new expiration:
+
+```
+from datetime import timedelta
+from django.utils import timezone
+
+invitation = rotate_token(
+    invitation=invitation,
+    expires_at=timezone.now() + timedelta(days=3),
+)
+```
+
+The new `expires_at` must be in the future and cannot exceed `MAX_TTL`. An invitation whose status is `EXPIRED` can never be revived this way.
+
 ## Events
 
 The package provides lifecycle events for:
@@ -219,12 +256,25 @@ The package provides exceptions for common lifecycle failures, including:
 ## Configuration
 
 All callbacks are optional.
+`MAX_TTL` defines the maximum lifetime of an invitation.
+`MAX_TTL` will also be used to calculate the default `expires_at` if it is not set explicitly when calling `create_invitation()`.
+
+`REQUIRE_RECIPIENT_MATCH` if set to `True`, it will match the email against `recipient.email` or `recipient_email` before accepting and invitation.
+This is the default behavior
 
 You can configure only the callbacks you need:
 
 ```python
 INVITATIONS = {
-    "CREATED_FUNC": "notifications.services.send_invitation",
+    "INVITE_CREATED_CALLBACK": "myapp.services.send_invitation",
+    "INVITE_ACCEPTED_CALLBACK": "myapp.services.invitation_accepted",
+    "INVITE_REVOKED_CALLBACK": "myapp.services.invitation_revoked",
+    "INVITE_EXPIRED_CALLBACK": "myapp.services.invitation_expired",
+
+    "RECIPIENT_MATCH": "myapp.services.validate_recipient",
+
+    "MAX_TTL": 7 * 24 * 60 * 60,
+    "REQUIRE_RECIPIENT_MATCH": True,
 }
 ```
 
@@ -233,6 +283,7 @@ Or configure nothing:
 ```python
 INVITATIONS = {}
 ```
+Defaults for `MAX_TTL` and `REQUIRE_EMAIL_MATCH` will be used.
 
 When no callback is configured, the lifecycle still works normally.
 

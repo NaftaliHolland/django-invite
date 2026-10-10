@@ -11,7 +11,7 @@ from .conf import get_event_handler
 invitation_created = Signal()
 invitation_accepted = Signal()
 invitation_revoked = Signal()
-invitation_expired= Signal()
+invitation_expired = Signal()
 
 
 class InvitationEventSender:
@@ -28,7 +28,6 @@ def emit(signal, handler_name, invitation):
 
     if handler is not None:
         handler(invitation)
-
 
 def emit_invitation_created(invitation):
 
