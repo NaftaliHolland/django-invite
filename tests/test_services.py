@@ -135,7 +135,7 @@ class InvitationServiceTests(TestCase):
         self.assertEqual(invitation.status, InvitationStatus.PENDING)
 
         accept_invitation(
-            invitation=invitation,
+            token=invitation.raw_token,
             accepted_by=self.recipient,
             )
 
@@ -150,7 +150,7 @@ class InvitationServiceTests(TestCase):
 
         with self.assertRaises(InvitationAlreadyAcceptedError):
             accept_invitation(
-                invitation=invitation,
+                token=invitation.raw_token,
                 accepted_by=self.recipient,
                 )
 
@@ -160,7 +160,7 @@ class InvitationServiceTests(TestCase):
         invitation.save(update_fields=["status"])
 
         with self.assertRaises(InvitationRevokedError):
-            accept_invitation(invitation=invitation)
+            accept_invitation(token=invitation.raw_token)
 
     def test_cannot_accept_expired_invitation(self):
         invitation = self.create_test_invitation()
@@ -168,7 +168,7 @@ class InvitationServiceTests(TestCase):
         invitation.save(update_fields=["status"])
 
         with self.assertRaises(InvitationExpiredError):
-            accept_invitation(invitation=invitation)
+            accept_invitation(token=invitation.raw_token)
 
     def test_revoke_invitation(self):
         invitation = self.create_test_invitation()
@@ -248,7 +248,7 @@ class InvitationEventTests(TestCase):
         invitation = self.create_test_invitation()
 
         with self.captureOnCommitCallbacks(execute=True):
-            accept_invitation(invitation=invitation)
+            accept_invitation(token=invitation.raw_token)
 
         mock_send.assert_called_once()
 

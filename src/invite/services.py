@@ -60,12 +60,12 @@ def get_invitation_by_token(token, is_raw=False):
 @transaction.atomic
 def accept_invitation(
     *,
-    invitation,
+    token,
     accepted_by=None,
 ):
 
     invitation = (
-        Invitation.objects.select_for_update().get(pk=invitation.pk)
+        Invitation.objects.select_for_update().get(token_hash=hash_token(token))
     )
 
     if invitation.status == InvitationStatus.ACCEPTED:
