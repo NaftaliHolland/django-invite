@@ -1,12 +1,15 @@
 import secrets
 import hashlib
 from django.utils import timezone
+
+from invite.conf import get_settings
 from .exceptions import (
     InvitationAlreadyAcceptedError,
     InvitationDoesNotExistError,
     InvitationError,
     InvitationExpiredError,
-    InvitationRevokedError
+    InvitationRevokedError,
+    MaximumTTLExceededError
 )
 from .models import Invitation, InvitationStatus
 from django.db import transaction
@@ -24,13 +27,17 @@ def create_invitation(
     *,
     inviter,
     purpose,
-    expires_at,
+    expires_at=None,
     recipient=None,
     recipient_email=None,
 
 ):
 
     raw_token = generate_token()
+    ttl_expires_at = timezone.now() + timezone.timedelta(seconds=get_settings().get("MAX_TTL"))
+
+    if expires_at and expires_at > ttl_expires_at:
+        raise MaximumTTLExceededError("expires_at cannot exceed MAX_TTL")
 
     invitation = Invitation.objects.create(
         inviter=inviter,
@@ -38,7 +45,7 @@ def create_invitation(
         recipient_email=recipient_email,
         purpose=purpose,
         token_hash=hash_token(raw_token),
-        expires_at=expires_at,
+        expires_at=expires_at if expires_at else ttl_expires_at,
     )
 
     invitation.raw_token = raw_token
@@ -47,7 +54,7 @@ def create_invitation(
 
     return invitation
 
-def get_invitation_by_token(token, is_raw=False):
+def get_invitation_by_token(token, is_raw=True):
     try:
         if is_raw:
             return Invitation.objects.get(token_hash=hash_token(token))

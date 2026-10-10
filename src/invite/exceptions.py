@@ -21,3 +21,6 @@ class InvitationDoesNotExistError(InvitationError):
 
 class InvitationCallbackNotCallable(InvitationError):
     pass
+
+class MaximumTTLExceededError(InvitationError):
+    pass

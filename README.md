@@ -75,7 +75,13 @@ invitation = create_invitation(
 
 The invitation is created as `PENDING` and receives a unique, unpredictable token.
 
-The package does not send a notification when the invitation is created.
+> [!IMPORTANT]
+> The returned invitation will have an additional `raw_token` which will not be persisted to the db.
+> This is the token that should be used to accept invitations.
+> The `INVITE_CREATED_CALLBACK` and the `invitation_created` signal receiver will be able to access `invitation.raw_token`.
+
+> [!NOTE]
+> THIS TOKEN CANNOT BE ACCESSED AGAIN.
 
 ## Sending the invitation
 
@@ -85,7 +91,7 @@ For example, you can configure a callback:
 
 ```python
 INVITATIONS = {
-    "CREATED_FUNC": "notifications.services.send_invitation",
+    "INVITE_CREATED_CALLBACK": "notifications.services.send_invitation",
 }
 ```
 
@@ -107,10 +113,14 @@ Django signals and configured callbacks are independent. You can use either or b
 from django_invitations.services import accept_invitation
 
 invitation = accept_invitation(
-    invitation=invitation,
+    token=token,
     user=request.user,
 )
 ```
+> [!IMPORTANT]
+> `token` has to be the `raw_token` returned by `create_invitation`.
+> The `token_hash` should not be used as an invite accept token.
+
 
 The service checks that the invitation is still valid before accepting it.
 
@@ -153,8 +163,10 @@ Invitations can be retrieved using their token:
 ```python
 from django_invitations.services import get_invitation_by_token
 
-invitation = get_invitation_by_token(token)
+invitation = get_invitation_by_token(token, is_raw=True)
 ```
+If `is_raw` it uses the raw_token to get the invitation (This should be used when accepting an invitation).
+`is_raw` is `True` by default.
 
 ## Events
 

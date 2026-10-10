@@ -3,6 +3,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 import uuid
 
+from invite.conf import get_settings
+
 User = get_user_model()
 
 class InvitationStatus(models.TextChoices):

@@ -7,7 +7,7 @@ from django.core.exceptions import ImproperlyConfigured
 from invite.conf import SETTING_NAME, get_settings, get_event_handler
 from invite.models import Invitation, InvitationStatus
 from django.utils import timezone
-from invite.exceptions import InvitationAlreadyAcceptedError, InvitationCallbackNotCallable, InvitationDoesNotExistError, InvitationExpiredError, InvitationRevokedError
+from invite.exceptions import InvitationAlreadyAcceptedError, InvitationCallbackNotCallable, InvitationDoesNotExistError, InvitationExpiredError, InvitationRevokedError, MaximumTTLExceededError
 from invite.services import create_invitation, accept_invitation, get_invitation_by_token, revoke_invitation, expire_invitation
 
 User = get_user_model()
@@ -24,6 +24,8 @@ class SettingsConfTestCase(SimpleTestCase):
             "INVITE_ACCEPTED_CALLBACK": None,
             "INVITE_REVOKED_CALLBACK": None,
             "INVITE_EXPIRED_CALLBACK": None,
+            "MAX_TTL": 7 * 24 * 60 * 60,
+            "REQUIRE_EMAIL_MATCH": True
         }
 
         with patch(f"django.conf.settings.{SETTING_NAME}", settings):
@@ -114,6 +116,37 @@ class InvitationServiceTests(TestCase):
 
         self.assertIsNotNone(invitation.raw_token)
 
+    def test_sets_default_expires_at(self):
+        before = timezone.now()
+
+        invitation = create_invitation(
+            inviter=self.inviter,
+            purpose="Test",
+            recipient=self.recipient,
+        )
+
+        after = timezone.now()
+
+        max_ttl = get_settings().get("MAX_TTL")
+
+        expected_earliest = before + timedelta(seconds=max_ttl)
+        expected_latest = after + timedelta(seconds=max_ttl)
+
+        self.assertGreaterEqual(invitation.expires_at, expected_earliest)
+        self.assertLessEqual(invitation.expires_at, expected_latest)
+
+    def raises_if_expires_at_is_greater_than_MAX_TTL(self):
+
+        with self.assertRaises(MaximumTTLExceededError):
+            invitation = create_invitation(
+                inviter=self.inviter,
+                purpose="Test",
+                expires_at=datetime.now() + timedelta(days=10),
+                recipient=self.recipient,
+            )
+
+
+
     def test_create_invitation_does_not_save_raw_token(self):
         invitation = create_invitation(
             inviter=self.inviter,
@@ -200,14 +233,14 @@ class InvitationServiceTests(TestCase):
 
         invitation_token =  invitation.raw_token
 
-        self.assertEqual(invitation, get_invitation_by_token(token=invitation_token, is_raw=True))
+        self.assertEqual(invitation, get_invitation_by_token(token=invitation_token))
 
     def test_get_invitation_by_token(self):
         invitation = self.create_test_invitation()
 
         invitation_token =  invitation.token_hash
 
-        self.assertEqual(invitation, get_invitation_by_token(token=invitation_token))
+        self.assertEqual(invitation, get_invitation_by_token(token=invitation_token, is_raw=False))
 
     def test_raises_if_exception_does_not_exist(self):
         with self.assertRaises(InvitationDoesNotExistError):
