@@ -67,13 +67,14 @@ from django_invitations.services import create_invitation
 
 invitation = create_invitation(
     inviter=request.user,
-    recipient_email="teacher@example.com",
-    purpose="school_teacher",
+    recipient_email="guest@example.com",
+    purpose="Guest invite",
     expires_at=expires_at,
+    meta={"invited_to": "gamillions"}
 )
 ```
 
-The invitation is created as `PENDING` and receives a unique, unpredictable token.
+`meta` is a `dict` represents application specific data that you might want to save and or use later together with the invitation
 
 > [!IMPORTANT]
 > The returned invitation will have an additional `raw_token` which will not be persisted to the db.

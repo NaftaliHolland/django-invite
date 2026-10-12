@@ -29,7 +29,7 @@ def create_invitation(
     expires_at=None,
     recipient=None,
     recipient_email=None,
-
+    meta=dict(),
 ):
 
     raw_token = generate_token()
@@ -43,6 +43,7 @@ def create_invitation(
         recipient=recipient,
         recipient_email=recipient_email,
         purpose=purpose,
+        meta=meta,
         token_hash=hash_token(raw_token),
         expires_at=expires_at if expires_at else ttl_expires_at,
     )

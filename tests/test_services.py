@@ -95,6 +95,7 @@ class InvitationServiceTests(TestCase):
             purpose="Test",
             expires_at=self.expires_at,
             recipient=self.recipient,
+            meta={"test": "some little test metadata"}
         )
 
     def test_create_invitation(self):
@@ -110,6 +111,7 @@ class InvitationServiceTests(TestCase):
             purpose="Test",
             expires_at=self.expires_at,
             recipient=self.recipient,
+            meta={"test": "some little test metadata"}
         )
 
         self.assertIsNotNone(invitation.raw_token)
@@ -121,6 +123,7 @@ class InvitationServiceTests(TestCase):
             inviter=self.inviter,
             purpose="Test",
             recipient=self.recipient,
+            meta={"test": "some little test metadata"}
         )
 
         after = timezone.now()
@@ -141,6 +144,7 @@ class InvitationServiceTests(TestCase):
                 purpose="Test",
                 expires_at=timezone.now() + timezone.timedelta(days=10),
                 recipient=self.recipient,
+                meta={"test": "some little test metadata"}
             )
 
 
