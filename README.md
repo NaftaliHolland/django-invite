@@ -48,7 +48,7 @@ Add it to `INSTALLED_APPS`:
 ```python
 INSTALLED_APPS = [
     # ...
-    "django_invitations",
+    "invite",
 ]
 ```
 
@@ -58,12 +58,54 @@ Run migrations:
 python manage.py migrate
 ``` -->
 
+## Configuration
+
+All callbacks are optional.
+`MAX_TTL` defines the maximum lifetime of an invitation.
+`MAX_TTL` will also be used to calculate the default `expires_at` if it is not set explicitly when calling `create_invitation()`.
+
+`REQUIRE_RECIPIENT_MATCH` if set to `True`, it will match the email against `recipient.email` or `recipient_email` before accepting and invitation.
+This is the default behavior
+
+You can configure only the callbacks you need:
+
+```python
+INVITATIONS = {
+    "INVITE_CREATED_CALLBACK": "myapp.services.send_invitation",
+    "INVITE_ACCEPTED_CALLBACK": "myapp.services.invitation_accepted",
+    "INVITE_REVOKED_CALLBACK": "myapp.services.invitation_revoked",
+    "INVITE_EXPIRED_CALLBACK": "myapp.services.invitation_expired",
+
+    "RECIPIENT_MATCH": "myapp.services.validate_recipient",
+
+    "MAX_TTL": 7 * 24 * 60 * 60,
+    "REQUIRE_RECIPIENT_MATCH": True,
+}
+```
+
+Or configure nothing:
+
+```python
+INVITATIONS = {}
+```
+Defaults for `MAX_TTL` and `REQUIRE_EMAIL_MATCH` will be used.
+
+When no callback is configured, the lifecycle still works normally.
+
+Callbacks receive the invitation instance:
+
+```python
+def send_invitation(invitation):
+    print(invitation.recipient_email)
+```
+
+The package resolves configured functions using Django's normal import utilities.
 ## Creating an invitation
 
 Use the service functions rather than changing invitation state directly.
 
 ```python
-from django_invitations.services import create_invitation
+from invite.services import create_invitation
 
 invitation = create_invitation(
     inviter=request.user,
@@ -77,12 +119,9 @@ invitation = create_invitation(
 `meta` is a `dict` represents application specific data that you might want to save and or use later together with the invitation
 
 > [!IMPORTANT]
-> The returned invitation will have an additional `raw_token` which will not be persisted to the db.
+> The returned invitation will have an additional `sha256` encoded string; `raw_token` which will not be persisted.
 > This is the token that should be used to accept invitations.
 > The `INVITE_CREATED_CALLBACK` and the `invitation_created` signal receiver will be able to access `invitation.raw_token`.
-
-> [!NOTE]
-> THIS TOKEN CANNOT BE ACCESSED AGAIN.
 
 ## Sending the invitation
 
@@ -111,7 +150,7 @@ Django signals and configured callbacks are independent. You can use either or b
 ## Accepting an invitation
 
 ```python
-from django_invitations.services import accept_invitation
+from invite.services import accept_invitation
 
 invitation = accept_invitation(
     token=token,
@@ -122,21 +161,10 @@ invitation = accept_invitation(
 > `token` has to be the `raw_token` returned by `create_invitation`.
 > The `token_hash` should not be used as an invite accept token.
 
-
-The service checks that the invitation is still valid before accepting it.
-
-It records:
-
-* The user who accepted it
-* When it was accepted
-* The new invitation state
-
-Concurrent requests are handled using database locking so that the same invitation cannot be successfully accepted twice.
-
 ## Revoking an invitation
 
 ```python
-from django_invitations.services import revoke_invitation
+from invite.services import revoke_invitation
 
 invitation = revoke_invitation(invitation)
 ```
@@ -150,7 +178,7 @@ An invitation becomes invalid automatically when its expiration time passes. A b
 An invitation can also be explicitly transitioned to `EXPIRED`:
 
 ```python
-from django_invitations.services import expire_invitation
+from invite.services import expire_invitation
 
 invitation = expire_invitation(invitation)
 ```
@@ -162,7 +190,7 @@ This distinction is intentional. An invitation can be **expired by time** withou
 Invitations can be retrieved using their token:
 
 ```python
-from django_invitations.services import get_invitation_by_token
+from invite.services import get_invitation_by_token
 
 invitation = get_invitation_by_token(token, is_raw=True)
 ```
@@ -173,8 +201,8 @@ If `is_raw` it uses the raw_token to get the invitation (This should be used whe
 
 Tokens are stored hashed, so the original link cannot be recovered after creation. To send an invitation again, or to cut off a link you think has leaked, rotate its token:
 
-```
-from django_invitations.services import rotate_token
+```python
+from invite.services import rotate_token
 
 invitation = rotate_token(invitation=invitation)
 
@@ -219,7 +247,7 @@ For example:
 
 ```python
 from django.dispatch import receiver
-from django_invitations.events import invitation_created
+from invite.events import invitation_created
 
 
 @receiver(invitation_created)
@@ -238,7 +266,7 @@ The service layer raises invitation-specific exceptions when an operation cannot
 For example:
 
 ```python
-from django_invitations.exceptions import InvitationExpiredError
+from invite.exceptions import InvitationExpiredError
 
 try:
     accept_invitation(invitation, user)
@@ -254,48 +282,6 @@ The package provides exceptions for common lifecycle failures, including:
 * `InvitationAlreadyAcceptedError`
 * `InvalidInvitationError`
 
-## Configuration
-
-All callbacks are optional.
-`MAX_TTL` defines the maximum lifetime of an invitation.
-`MAX_TTL` will also be used to calculate the default `expires_at` if it is not set explicitly when calling `create_invitation()`.
-
-`REQUIRE_RECIPIENT_MATCH` if set to `True`, it will match the email against `recipient.email` or `recipient_email` before accepting and invitation.
-This is the default behavior
-
-You can configure only the callbacks you need:
-
-```python
-INVITATIONS = {
-    "INVITE_CREATED_CALLBACK": "myapp.services.send_invitation",
-    "INVITE_ACCEPTED_CALLBACK": "myapp.services.invitation_accepted",
-    "INVITE_REVOKED_CALLBACK": "myapp.services.invitation_revoked",
-    "INVITE_EXPIRED_CALLBACK": "myapp.services.invitation_expired",
-
-    "RECIPIENT_MATCH": "myapp.services.validate_recipient",
-
-    "MAX_TTL": 7 * 24 * 60 * 60,
-    "REQUIRE_RECIPIENT_MATCH": True,
-}
-```
-
-Or configure nothing:
-
-```python
-INVITATIONS = {}
-```
-Defaults for `MAX_TTL` and `REQUIRE_EMAIL_MATCH` will be used.
-
-When no callback is configured, the lifecycle still works normally.
-
-Callbacks receive the invitation instance:
-
-```python
-def send_invitation(invitation):
-    print(invitation.recipient_email)
-```
-
-The package resolves configured functions using Django's normal import utilities.
 
 
 ## What django-invite does not do
