@@ -8,7 +8,7 @@ from .exceptions import (
     InvitationError,
     InvitationExpiredError,
     InvitationRevokedError,
-    MaximumTTLExceededError
+    MaximumTTLExceededError,
 )
 from .models import Invitation, InvitationStatus
 from django.db import transaction
@@ -49,7 +49,7 @@ def create_invitation(
     )
 
     invitation.raw_token = raw_token
-    
+
     emit_after_commit(emit_invitation_created, invitation)
 
     return invitation
@@ -63,6 +63,9 @@ def get_invitation_by_token(token, is_raw=True):
 
     except Invitation.DoesNotExist:
         raise InvitationDoesNotExistError
+
+def check_recipient_match(user_email, recipient_email) -> bool:
+    return False
 
 @transaction.atomic
 def accept_invitation(

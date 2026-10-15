@@ -31,7 +31,6 @@ def get_settings():
         **configured,
     }
 
-
 def get_event_handler(name):
     path = get_settings().get(name)
 

@@ -64,8 +64,8 @@ All callbacks are optional.
 `MAX_TTL` defines the maximum lifetime of an invitation.
 `MAX_TTL` will also be used to calculate the default `expires_at` if it is not set explicitly when calling `create_invitation()`.
 
-`REQUIRE_RECIPIENT_MATCH` if set to `True`, it will match the email against `recipient.email` or `recipient_email` before accepting and invitation.
-This is the default behavior
+<!--`REQUIRE_RECIPIENT_MATCH` if set to `True`, it will match the email against `recipient.email` or `recipient_email` before accepting and invitation.
+This is the default behavior-->
 
 You can configure only the callbacks you need:
 
@@ -79,7 +79,6 @@ INVITATIONS = {
     "RECIPIENT_MATCH": "myapp.services.validate_recipient",
 
     "MAX_TTL": 7 * 24 * 60 * 60,
-    "REQUIRE_RECIPIENT_MATCH": True,
 }
 ```
 
@@ -88,7 +87,8 @@ Or configure nothing:
 ```python
 INVITATIONS = {}
 ```
-Defaults for `MAX_TTL` and `REQUIRE_EMAIL_MATCH` will be used.
+<!--Defaults for `MAX_TTL` and `REQUIRE_EMAIL_MATCH` will be used.-->
+The default for `MAX_TTL` will be used.
 
 When no callback is configured, the lifecycle still works normally.
 
@@ -154,7 +154,7 @@ from invite.services import accept_invitation
 
 invitation = accept_invitation(
     token=token,
-    user=request.user,
+    accepted_by=request.user,
 )
 ```
 > [!IMPORTANT]

@@ -23,7 +23,7 @@ class SettingsConfTestCase(SimpleTestCase):
             "INVITE_REVOKED_CALLBACK": None,
             "INVITE_EXPIRED_CALLBACK": None,
             "MAX_TTL": 7 * 24 * 60 * 60,
-            "REQUIRE_EMAIL_MATCH": True
+            "REQUIRE_RECIPIENT_MATCH": True
         }
 
         with patch(f"django.conf.settings.{SETTING_NAME}", settings):
@@ -147,8 +147,6 @@ class InvitationServiceTests(TestCase):
                 meta={"test": "some little test metadata"}
             )
 
-
-
     def test_create_invitation_does_not_save_raw_token(self):
         invitation = create_invitation(
             inviter=self.inviter,
@@ -199,6 +197,7 @@ class InvitationServiceTests(TestCase):
 
         with self.assertRaises(InvitationExpiredError):
             accept_invitation(token=invitation.raw_token)
+
 
     def test_revoke_invitation(self):
         invitation = self.create_test_invitation()
